@@ -45,7 +45,7 @@ class MapSquare(Coordinate):
     def is_empty(self):
         """Returns true if the map square has no obstacle and is not occupied"""
         return not self.blocked and self.object_size == 0
-    
+
     def reset(self):
         """Resets the map square so it can be updated later"""
         self.object_size = 0

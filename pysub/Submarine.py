@@ -1,6 +1,6 @@
 """Defines a generic submarine"""
-from Commands import PingCommand, MoveCommand, FireCommand
-from Util import Coordinate
+from commands import PingCommand, MoveCommand, FireCommand
+from util import Coordinate
 
 class Submarine():
     """Generic submarine"""

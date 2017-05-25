@@ -1,14 +1,16 @@
 """This module defines a simple submarine in python"""
-import ServerMessage
-import SocketManager
-from Util import Coordinate, Direction, Equipment
-from Submarine import Submarine
+import random
+import sys
+import server_message
+import socket_manager
+from util import Coordinate, Direction, Equipment
+from submarine import Submarine
 
 
 DEFAULT_USERNAME = "PySub"
 DEFAULT_SERVER_ADDRESS = "localhost"
 DEFAULT_SERVER_PORT = 9555
-ALL_DIRECTIONS = list(Direction.NORTH, Direction.EAST, Direction.SOUTH, Direction.WEST)
+ALL_DIRECTIONS = [Direction.NORTH, Direction.EAST, Direction.SOUTH, Direction.WEST]
 
 
 class PySub():
@@ -31,12 +33,12 @@ class PySub():
         self.server_address = server_address
         self.server_port = server_port
         self.verbose = verbose
-        self.socket_manager = SocketManager.SocketManager(server_address, server_port, verbose)
+        self.socket_manager = socket_manager.SocketManager(server_address, server_port, verbose)
 
     def login(self):
         """Logs in to server"""
         self.socket_manager.connect()
-        self.configure(ServerMessage.GameConfigMessage(self.socket_manager.receive_message(), \
+        self.configure(server_message.GameConfigMessage(self.socket_manager.receive_message(), \
         self.socket_manager))
 
     def configure(self, message):
@@ -71,21 +73,21 @@ class PySub():
         message = self.socket_manager.receive_message()
         while message is not None:
             if message.startswith("B"): #Begin Turn
-                self.handle_begin_turn_message(ServerMessage.BeginTurnMessage(message))
+                self.handle_begin_turn_message(server_message.BeginTurnMessage(message))
             elif message.startswith("S|"): #Sonar Detection
-                self.handle_sonar_detection_message(ServerMessage.SonarDetectionMessage(message))
+                self.handle_sonar_detection_message(server_message.SonarDetectionMessage(message))
             elif message.startswith("D|"): #Detonation
-                self.handle_detonation_message(ServerMessage.DetonationMessage(message))
+                self.handle_detonation_message(server_message.DetonationMessage(message))
             elif message.startswith("T|"): #Torpedo Hit
-                self.handle_torpedo_hit_message(ServerMessage.TorpedoHitMessage(message))
+                self.handle_torpedo_hit_message(server_message.TorpedoHitMessage(message))
             elif message.startswith("O|"): #Discovered object
-                self.handle_discovered_object_message(ServerMessage.DiscoveredObjectMessage(message))
+                self.handle_discovered_object_message(server_message.DiscoveredObjectMessage(message))
             elif message.startswith("I|"): #Sub info
-                self.handle_info_message(ServerMessage.SubmarineInfoMessage(message))
+                self.handle_info_message(server_message.SubmarineInfoMessage(message))
             elif message.startswith("H|"): #player score
-                self.handle_player_score_message(ServerMessage.PlayerScoreMessage(message))
+                self.handle_player_score_message(server_message.PlayerScoreMessage(message))
             elif message.startswith("F|"): #game finished
-                self.handle_game_finished_message(ServerMessage.GameFinishedMessage(message, self.socket_manager))
+                self.handle_game_finished_message(server_message.GameFinishedMessage(message, self.socket_manager))
                 break
             else:
                 print("error in message: {0}".format(message))
@@ -104,7 +106,7 @@ class PySub():
         if self.verbose:
             #TODO
             pass
-        self.issue_command() #logic goes here
+        self.issue_command(self.my_sub) #logic goes here
 
         #Clear all info so it can be repopulated by turn results method.
         for entry in self.game_map:
@@ -132,7 +134,7 @@ class PySub():
         """handles discovered object message"""
         self.check_turn_number(message)
         square = self.game_map[message.location]
-        if not square.blocked:
+        if square and not square.blocked:
             square.object_size += message.size
             square.foreign_object_size += message.size
 
@@ -152,16 +154,124 @@ class PySub():
         for result in message.player_results:
             print("    {0} score: {1}".format(result.player_name, result.player_score))
 
-    def issue_command(self):
-        """Fancy AI logic for the sub"""
-        #TODO
-        pass
+    def issue_command(self, sub):
+        """Fancy AI logic for the sub. Lifted wholesale from Dudly Jr"""
 
-# if __name__ == '__main__':
-#     if '--help' in sys.argv or '-h' in sys.argv:
-#         print("Usage will go here") #TODO
-#     username_arg = sys.argv[0] if sys.argv[0] is not None else DEFAULT_USERNAME
-#     server_address_arg = sys.argv[1] if sys.argv[1] is not None else DEFAULT_SERVER_ADDRESS
-#     server_port_arg = sys.argv[2] if sys.argv[2] is not None else DEFAULT_SERVER_PORT
+        #shoot things if possible
+        target = self.get_torpedo_target(sub)
+        if target is not None:
+            self.socket_manager.send_message(sub.fire_torpedo(self.turn_number, target))
+            self.random_destination = None
+            return
 
-#     bot = PySub(username_arg, server_address_arg, server_port_arg)
+        #maybe ping
+        if sub.max_sonar_charge or (not self.spotted and sub.torpedo_range >= sub.sonar_range) and sub.sonar_range > 1 + random.randint(0, 6):
+            self.socket_manager.send_message(sub.ping(self.turn_number))
+            self.random_destination = None
+            return
+
+        #maybe new destination
+        if self.random_destination is None or self.random_destination == sub.location:
+            self.random_destination = self.random_square(sub.location)
+            if self.verbose:
+                print("New random destination: {0}".format(self.random_destination))
+
+        charge = Equipment.SONAR if sub.max_torpedo_charge or sub.torpedo_range >= sub.sonar_range or random.randint(0, 100) < 33 else Equipment.TORPEDO
+        direction = self.get_direction_toward(sub.location, self.random_destination)
+        self.socket_manager.send_message(sub.move(self.turn_number, direction, charge))
+
+    def get_direction_toward(self, start, destination):
+        """Gets the direction to get from location to destination"""
+        if start == destination or not self.game_map[start] or not self.game_map[destination]:
+            raise ValueError("Invalid direction coordinates {0} - {1}".format(start, destination))
+
+        directions = list()
+
+        if destination.x < start.x:
+            directions.append(Direction.WEST)
+        if destination.x > start.x:
+            directions.append(Direction.EAST)
+        if destination.y < start.y:
+            directions.append(Direction.NORTH)
+        if destination.y > start.y:
+            directions.append(Direction.SOUTH)
+
+        direction = random.choice(directions)
+        if self.game_map[start.shifted(direction)] and not self.game_map[start.shifted(direction)].blocked:
+            return direction
+
+        directions.extend(ALL_DIRECTIONS)
+        random.shuffle(directions)
+        for rand_direction in directions:
+            if self.game_map[start.shifted(direction)] and not self.game_map[start.shifted(rand_direction)].blocked:
+                return rand_direction
+
+        #in theory unreachable
+        raise ValueError("yo you can't move anywhere from {0}".format(start))
+
+    def get_torpedo_target(self, sub):
+        """Get a target to shoot"""
+        if sub.torpedo_range < 2:
+            return
+
+        largest_size = 1
+        targets = list()
+        in_range = self.squares_in_range_of(sub.location, sub.torpedo_range)
+        for coord in in_range:
+            if self.get_blast_distance(sub.location, coord) > 1:
+                square = self.game_map[coord]
+                if square.foreign_object_size >= largest_size and square.foreign_object_size == square.object_size:
+                    targets.append(coord)
+
+        if not targets:
+            return
+
+        return random.choice(targets)
+
+    def get_blast_distance(self, from_coord, to_coord):
+        """returns a blast distance"""
+        if not self.game_map[from_coord] or not self.game_map[to_coord]:
+            raise ValueError("get blast distance fed invalid coords")
+        x_diff = abs(from_coord.x - to_coord.x)
+        y_diff = abs(from_coord.y - to_coord.y)
+        return max(x_diff, y_diff)
+
+    def squares_in_range_of(self, location, torpedo_range):
+        """Finds all squares in range of the provided location"""
+        if not self.game_map[location]:
+            raise ValueError("location {0} is invalid".format(location))
+        destinations = dict()
+        if range > 0:
+            self.add_destinations(destinations, location, 1, torpedo_range)
+        return destinations
+
+    def add_destinations(self, input_destinations, coord, distance, torpedo_range):
+        """recursively finds all valid destinations from squares"""
+        next_potential_destinations = list()
+        for direction in ALL_DIRECTIONS:
+            temp_destination = coord.shifted(direction)
+            if self.game_map[temp_destination] and not self.game_map[temp_destination].blocked:
+                previous_distance = input_destinations[temp_destination]
+                if not previous_distance or distance < previous_distance:
+                    input_destinations[temp_destination] = distance
+                    if not self.game_map[temp_destination]:
+                        next_potential_destinations.append(temp_destination)
+
+        if distance < torpedo_range:
+            for potential in next_potential_destinations:
+                self.add_destinations(input_destinations, potential, distance + 1, torpedo_range)
+
+
+    def random_square(self, location):
+        """Get a random square on the map"""
+        while True:
+            x_val = random.randint(1, self.map_width)
+            y_val = random.randint(1, self.map_height)
+            location = Coordinate(x_val, y_val)
+            if self.game_map[location] and not self.game_map[location].blocked:
+                return location
+
+if __name__ == '__main__':
+    if '--help' in sys.argv or '-h' in sys.argv:
+        print("Usage will go here")
+    bot = PySub(DEFAULT_USERNAME, DEFAULT_SERVER_ADDRESS, DEFAULT_SERVER_PORT, True)

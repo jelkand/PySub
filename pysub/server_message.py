@@ -1,5 +1,5 @@
 """Methods for managing server messages"""
-from Util import *
+from util import Coordinate
 
 class ServerMessage:
     """Base class of server messages"""
