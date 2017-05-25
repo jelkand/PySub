@@ -39,6 +39,7 @@ class SocketManager():
         if "\n" in message:
             raise ValueError("Cannot send multiline messages")
 
+        message += "\n"
         byte_message = message.encode('utf-8')
         if self.is_connected():
             if self.verbose:
@@ -65,6 +66,9 @@ class SocketManager():
                 message_list.append(message_chunk)
                 if "\n" in message_chunk:
                     delimiter_received = True
-            return ''.join(message_list)
+            message = ''.join(message_list)
+            if self.verbose:
+                print("RECV: {0}".format(message))
+            return message
         else:
             raise IOError("Not Connected")

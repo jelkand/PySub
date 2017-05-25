@@ -73,19 +73,19 @@ class PySub():
             if message.startswith("B"): #Begin Turn
                 self.handle_begin_turn_message(ServerMessage.BeginTurnMessage(message))
             elif message.startswith("S|"): #Sonar Detection
-                self.handle_sonar_detection_message(ServerMessage.SonarActivationMessage)
+                self.handle_sonar_detection_message(ServerMessage.SonarDetectionMessage(message))
             elif message.startswith("D|"): #Detonation
-                pass
+                self.handle_detonation_message(ServerMessage.DetonationMessage(message))
             elif message.startswith("T|"): #Torpedo Hit
-                pass
+                self.handle_torpedo_hit_message(ServerMessage.TorpedoHitMessage(message))
             elif message.startswith("O|"): #Discovered object
-                pass
+                self.handle_discovered_object_message(ServerMessage.DiscoveredObjectMessage(message))
             elif message.startswith("I|"): #Sub info
-                pass
+                self.handle_info_message(ServerMessage.SubmarineInfoMessage(message))
             elif message.startswith("H|"): #player score
-                pass
+                self.handle_player_score_message(ServerMessage.PlayerScoreMessage(message))
             elif message.startswith("F|"): #game finished
-                pass
+                self.handle_game_finished_message(ServerMessage.GameFinishedMessage(message, self.socket_manager))
                 break
             else:
                 print("error in message: {0}".format(message))
@@ -104,11 +104,11 @@ class PySub():
         if self.verbose:
             #TODO
             pass
-        self.issue_command()
+        self.issue_command() #logic goes here
+
         #Clear all info so it can be repopulated by turn results method.
         for entry in self.game_map:
             entry.reset()
-
         self.spotted = list()
         self.detonations = list()
         self.torpedo_hits = list()
@@ -117,6 +117,40 @@ class PySub():
         """handles sonar detection message"""
         self.check_turn_number(message)
         self.spotted.append(message)
+
+    def handle_detonation_message(self, message):
+        """handles detonation message"""
+        self.check_turn_number(message)
+        self.detonations.append(message)
+
+    def handle_torpedo_hit_message(self, message):
+        """handles torpedo hit message"""
+        self.check_turn_number(message)
+        self.torpedo_hits.append(message)
+
+    def handle_discovered_object_message(self, message):
+        """handles discovered object message"""
+        self.check_turn_number(message)
+        square = self.game_map[message.location]
+        if not square.blocked:
+            square.object_size += message.size
+            square.foreign_object_size += message.size
+
+    def handle_info_message(self, message):
+        """handles sub info messages"""
+        self.check_turn_number(message)
+        self.my_sub.update(message)
+        self.game_map[self.my_sub.location].foreign_object_size -= self.my_sub.size
+
+    def handle_player_score_message(self, message):
+        """handles player score message"""
+        self.check_turn_number(message)
+
+    def handle_game_finished_message(self, message):
+        """handles game finished message"""
+        print("Game finished")
+        for result in message.player_results:
+            print("    {0} score: {1}".format(result.player_name, result.player_score))
 
     def issue_command(self):
         """Fancy AI logic for the sub"""
