@@ -9,6 +9,7 @@ from submarine import Submarine
 
 DEFAULT_USERNAME = "PySub"
 DEFAULT_SERVER_ADDRESS = "localhost"
+#DEFAULT_SERVER_ADDRESS = "127.0.0.1"
 DEFAULT_SERVER_PORT = 9555
 ALL_DIRECTIONS = [Direction.NORTH, Direction.EAST, Direction.SOUTH, Direction.WEST]
 
@@ -38,8 +39,15 @@ class PySub():
     def login(self):
         """Logs in to server"""
         self.socket_manager.connect()
-        self.configure(server_message.GameConfigMessage(self.socket_manager.receive_message(), \
-        self.socket_manager))
+        self.configure(server_message.GameConfigMessage(self.socket_manager.receive_message(), self.socket_manager))
+
+        self.my_sub.location = self.random_square(None)
+        self.socket_manager.send_message("J|{0}|{1}|{2}".format(self.username, self.my_sub.get_x(), self.my_sub.get_y()))
+
+        response = self.socket_manager.receive_message()
+        if response != "J|{0}".format(self.username):
+            raise IOError("Failed to join. Server response: {0}".format(response))
+
 
     def configure(self, message):
         """Configures the game"""
@@ -274,4 +282,15 @@ class PySub():
 if __name__ == '__main__':
     if '--help' in sys.argv or '-h' in sys.argv:
         print("Usage will go here")
-    bot = PySub(DEFAULT_USERNAME, DEFAULT_SERVER_ADDRESS, DEFAULT_SERVER_PORT, True)
+    verbose = '--verbose' or '-v' in sys.argv
+
+    bot = PySub(DEFAULT_USERNAME, DEFAULT_SERVER_ADDRESS, DEFAULT_SERVER_PORT, verbose)
+
+    try:
+        bot.login()
+        bot.play()
+    except (ValueError, RuntimeError, IOError) as error:
+        print("ERROR: {0}".format(error))
+    finally:
+        bot.socket_manager.disconnect()
+

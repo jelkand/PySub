@@ -35,6 +35,7 @@ class GameConfigMessage(ServerMessage):
     custom_settings = list()
 
     def __init__(self, message, socket_manager):
+        print(self.prefix + self.message_type + message)
         super().__init__(self, self.prefix, self.message_type, self.min_part_count, message)
         self.server_version = self.get_part(1)
         self.game_title = self.get_part(2)
