@@ -43,7 +43,7 @@ class GameConfigMessage(ServerMessage):
         self.settings_count = int(self.get_part(5))
 
         for _ in range(self.settings_count):
-            self.custom_settings.append(GameSettingMessage(socket_manager.receive_message(self)))
+            self.custom_settings.append(GameSettingMessage(socket_manager.receive_message()))
 
 class TurnMessage(ServerMessage):
     """message for turn info"""
@@ -123,7 +123,6 @@ class SubmarineInfoMessage(TurnMessage):
 
         for i in range(6, self.part_count):
             split = self.get_part(i).split('=')
-            print(split)
             if len(split) != 2:
                 raise ValueError("invalid submarine info message: {0}".format(message))
             elif split[0] == "shields":

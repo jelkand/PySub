@@ -128,6 +128,8 @@ class PySub():
         """handles sonar detection message"""
         self.check_turn_number(message)
         self.spotted.append(message)
+        if verbose:
+            print("Sub(s) spotted: \n{0}".format(self.spotted))
 
     def handle_detonation_message(self, message):
         """handles detonation message"""
@@ -235,6 +237,9 @@ class PySub():
         if not targets:
             return
 
+        if self.verbose:
+            print("Targets found: \n{0}".format(targets))
+
         return random.choice(targets)
 
     def get_blast_distance(self, from_coord, to_coord):
@@ -284,6 +289,8 @@ if __name__ == '__main__':
     if '--help' in sys.argv or '-h' in sys.argv:
         print("Usage will go here")
     verbose = '--verbose' or '-v' in sys.argv
+    if verbose:
+        print("Running in verbose mode")
 
     bot = PySub(DEFAULT_USERNAME, DEFAULT_SERVER_ADDRESS, DEFAULT_SERVER_PORT, verbose)
 

@@ -61,7 +61,7 @@ class SocketManager():
             delimiter_received = False
             message_list = list()
             while not delimiter_received:
-                message_chunk = self.socket.recv(64).decode('utf-8')
+                message_chunk = self.socket.recv(1).decode('utf-8')
                 if not message_chunk:
                     break
                 message_list.append(message_chunk)
@@ -71,7 +71,7 @@ class SocketManager():
             if self.verbose:
                 print("RECV: {0}".format(message))
             if "\n" in message:
-                print("You accidentally got two messages")
+                raise ValueError("You accidentally got two messages")
             return message
         else:
             raise IOError("Not Connected")
