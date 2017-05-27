@@ -10,12 +10,18 @@ class Direction(Enum):
     SOUTH = 'S'
     WEST = 'W'
 
+    def __str__(self):
+        return self.value
+
 class Equipment(Enum):
     """Enumeration of Equipment.
     Only equipment to move, ping, and fire is available."""
     NONE = "None"
     SONAR = "Sonar"
     TORPEDO = "Torpedo"
+
+    def __str__(self):
+        return self.value
 
 class Coordinate(namedtuple('Coordinate', ['x', 'y'])):
     """Represents a map coordinate"""
@@ -39,8 +45,8 @@ class MapSquare(Coordinate):
     object_size = 0
     foreign_object_size = 0
 
-    def __init__(self, x, y):
-        super().__init__(self, x, y)
+    # def __init__(self, x, y):
+    #     super(MapSquare, self).__init__(x, y)
 
     def is_empty(self):
         """Returns true if the map square has no obstacle and is not occupied"""

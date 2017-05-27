@@ -34,6 +34,7 @@ class SocketManager():
 
     def send_message(self, message):
         """Sends a message via socket"""
+        message = str(message)
         if not message.strip():
             raise ValueError("Cannot send null or empty message")
         if "\n" in message:
@@ -60,15 +61,17 @@ class SocketManager():
             delimiter_received = False
             message_list = list()
             while not delimiter_received:
-                message_chunk = self.socket.recv(2048).decode('utf-8')
+                message_chunk = self.socket.recv(64).decode('utf-8')
                 if not message_chunk:
                     break
                 message_list.append(message_chunk)
                 if "\n" in message_chunk:
                     delimiter_received = True
-            message = ''.join(message_list)
+            message = ''.join(message_list).strip()
             if self.verbose:
                 print("RECV: {0}".format(message))
+            if "\n" in message:
+                print("You accidentally got two messages")
             return message
         else:
             raise IOError("Not Connected")

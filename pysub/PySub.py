@@ -1,9 +1,10 @@
 """This module defines a simple submarine in python"""
+import traceback
 import random
 import sys
 import server_message
 import socket_manager
-from util import Coordinate, Direction, Equipment
+from util import Coordinate, Direction, Equipment, MapSquare
 from submarine import Submarine
 
 
@@ -46,7 +47,7 @@ class PySub():
 
         response = self.socket_manager.receive_message()
         if response != "J|{0}".format(self.username):
-            raise IOError("Failed to join. Server response: {0}".format(response))
+            raise IOError("Failed to join. Server response: {0}.".format(response))
 
 
     def configure(self, message):
@@ -57,10 +58,10 @@ class PySub():
         self.my_sub = Submarine(0)
 
         #initialize game map
-        for y_val in range(1, self.map_height):
-            for x_val in range(1, self.map_width):
+        for y_val in range(1, self.map_height + 1):
+            for x_val in range(1, self.map_width + 1):
                 coord = Coordinate(x_val, y_val)
-                self.game_map[coord] = coord
+                self.game_map[coord] = MapSquare(coord.x, coord.y)
 
         print("Joining as player:   {0}".format(self.username))
         print("Server Host:Port:    {0}:{1}".format(self.server_address, self.server_port))
@@ -99,6 +100,7 @@ class PySub():
                 break
             else:
                 print("error in message: {0}".format(message))
+                break
             message = self.socket_manager.receive_message()
 
     def check_turn_number(self, message):
@@ -110,15 +112,14 @@ class PySub():
 
     def handle_begin_turn_message(self, message):
         """Handles a begin turn message"""
-        self.turn_number = message.get_part(1)
+        self.turn_number = int(message.get_part(1))
         if self.verbose:
-            #TODO
-            pass
+            input("Press Enter to continue...")
         self.issue_command(self.my_sub) #logic goes here
 
         #Clear all info so it can be repopulated by turn results method.
-        for entry in self.game_map:
-            entry.reset()
+        for coord, square in self.game_map.items():
+            square.reset()
         self.spotted = list()
         self.detonations = list()
         self.torpedo_hits = list()
@@ -186,7 +187,7 @@ class PySub():
 
         charge = Equipment.SONAR if sub.max_torpedo_charge or sub.torpedo_range >= sub.sonar_range or random.randint(0, 100) < 33 else Equipment.TORPEDO
         direction = self.get_direction_toward(sub.location, self.random_destination)
-        self.socket_manager.send_message(sub.move(self.turn_number, direction, charge))
+        self.socket_manager.send_message(sub.move(self.turn_number, str(direction), str(charge)))
 
     def get_direction_toward(self, start, destination):
         """Gets the direction to get from location to destination"""
@@ -205,13 +206,13 @@ class PySub():
             directions.append(Direction.SOUTH)
 
         direction = random.choice(directions)
-        if self.game_map[start.shifted(direction)] and not self.game_map[start.shifted(direction)].blocked:
+        if self.game_map.get(start.shifted(direction)) and not self.game_map[start.shifted(direction)].blocked:
             return direction
 
         directions.extend(ALL_DIRECTIONS)
         random.shuffle(directions)
         for rand_direction in directions:
-            if self.game_map[start.shifted(direction)] and not self.game_map[start.shifted(rand_direction)].blocked:
+            if self.game_map.get(start.shifted(direction)) and not self.game_map[start.shifted(rand_direction)].blocked:
                 return rand_direction
 
         #in theory unreachable
@@ -249,7 +250,7 @@ class PySub():
         if not self.game_map[location]:
             raise ValueError("location {0} is invalid".format(location))
         destinations = dict()
-        if range > 0:
+        if torpedo_range > 0:
             self.add_destinations(destinations, location, 1, torpedo_range)
         return destinations
 
@@ -258,8 +259,8 @@ class PySub():
         next_potential_destinations = list()
         for direction in ALL_DIRECTIONS:
             temp_destination = coord.shifted(direction)
-            if self.game_map[temp_destination] and not self.game_map[temp_destination].blocked:
-                previous_distance = input_destinations[temp_destination]
+            if self.game_map.get(temp_destination) and not self.game_map[temp_destination].blocked:
+                previous_distance = input_destinations.get(temp_destination)
                 if not previous_distance or distance < previous_distance:
                     input_destinations[temp_destination] = distance
                     if not self.game_map[temp_destination]:
@@ -276,7 +277,7 @@ class PySub():
             x_val = random.randint(1, self.map_width)
             y_val = random.randint(1, self.map_height)
             location = Coordinate(x_val, y_val)
-            if self.game_map[location] and not self.game_map[location].blocked:
+            if self.game_map.get(location) and not self.game_map[location].blocked:
                 return location
 
 if __name__ == '__main__':
@@ -291,6 +292,7 @@ if __name__ == '__main__':
         bot.play()
     except (ValueError, RuntimeError, IOError) as error:
         print("ERROR: {0}".format(error))
+        print(traceback.print_exc())
     finally:
         bot.socket_manager.disconnect()
 
